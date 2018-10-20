@@ -1,0 +1,40 @@
+#!/usr/bin/python3
+
+import sys
+import optparse
+
+import Components
+import KiCadExportParser
+import Octopart
+
+
+def parseOptions():
+    global options
+    global netlist_filenames
+
+    parser = optparse.OptionParser(usage="%prog --octopart-apikey=<apikey> <netlist.xml> ...")
+    parser.add_option("--octopart-apikey", dest="octopart_apikey")
+
+
+    (options, netlist_filenames) = parser.parse_args()
+
+def main():
+    parseOptions()
+
+    components = Components.Components()
+    for netlist_filename in netlist_filenames:
+        p = KiCadExportParser.KiCadExportParser(netlist_filename)
+        components.merge(p.components)
+
+    #print(components)
+
+    parts = components.parts()
+    #print(parts)
+
+    octopart = Octopart.Octopart(options.octopart_apikey)
+    octopart.populate(parts.allMFPs())
+
+
+
+if __name__ == "__main__":
+    main()
