@@ -1,28 +1,37 @@
 
-import Parts
+import utils
 
 class Components (object):
     def __init__(self):
-        self.components = []
+        self.components = {}
 
     def __repr__(self):
-        s = "<Components\n"
-        for component in self.components:
-            s += " " + repr(component) + "\n"
+        s = "<Components"
+        s += utils.indentReprList(self.components.values())
         s += ">"
         return s
 
     def add(self, component):
-        self.components.append(component)
+        queries = component.queries
+
+        if queries in self.components:
+            old_component = self.components[queries]
+            old_component.addCount(component.count)
+            for location in component.locations:
+                old_component.addLocation(location)
+
+        else:
+            self.components[queries] = component
 
     def merge(self, other):
-        self.components += other.components
+        for component in other.components.values():
+            self.add(component)
 
-    def parts(self):
-        parts = Parts.Parts()
+    def findParts(self, parts_dict):
+        for component in self.components.values():
+            component.findParts(parts_dict)
 
-        for component in self.components:
-            parts.addComponent(component)
-
-        return parts
+    def findBestOffers(self):
+        for component in self.components.values():
+            component.findBestOffers()
 

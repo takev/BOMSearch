@@ -5,6 +5,10 @@ import urllib
 import sys
 import time
 
+import Part
+import PartOffer
+import PriceBreak
+
 class Octopart (object):
     def __init__(self, api_key):
         self.api_key = api_key
@@ -17,39 +21,85 @@ class Octopart (object):
             self.cache = {}
 
     def __getitem__(self, key):
-        return self.cache[key]
+        self.populate(key)
+        if key not in self.cache:
+            raise KeyError(key)
+
+        parts = []
+        for item in self.cache[key]:
+            part = Part.Part()
+            part.brand = item["brand"]["name"]
+            part.manufacturer = item["manufacturer"]["name"]
+            part.manufacturer_part_number = item["mpn"]
+            for offer in item["offers"]:
+                part_offer = PartOffer.PartOffer()
+                part_offer.seller = offer["seller"]["name"]
+                part_offer.stock_keeping_unit = offer["sku"]
+                part_offer.is_authorized = offer["is_authorized"]
+                part_offer.in_stock_quantity = offer["in_stock_quantity"]
+
+                minimum = 1 if not offer["moq"] else offer["moq"]
+                multiple = 1 if not offer["order_multiple"] else offer["order_multiple"]
+                for currency, price_breaks in offer["prices"].items():
+                    for (quantity, price) in price_breaks:
+                        part_offer.add(PriceBreak.PriceBreak(
+                            currency=currency,
+                            price=price,
+                            quantity=quantity,
+                            minimum=minimum,
+                            multiple=multiple
+                        ))
+
+                part.add(part_offer)
+            
+            parts.append(part)
+
+        return parts
 
     def save(self):
         fd = open(".octopart_cache.pickle", "wb")
         pickle.dump(self.cache, fd)
         fd.close()
 
-    def populate(self, keys):
+    def populate(self, query):
         """Populate cache with information about keys.
         """
-        keys = list(keys)
-        keys.sort()
+        if query not in self.cache:
+            print("Quering octopart for %s." % repr(query), end=" ", flush=True, file=sys.stderr)
+            queries = json.dumps([query.OctopartQuery()])
 
-        for key in keys:
-            if key not in self.cache:
-                print("Quering octopart for %s." % repr(key), file=sys.stderr)
-                queries = json.dumps([{"mpn": key}])
+            url = 'http://octopart.com/api/v3/parts/match?queries=%s&apikey=%s' % (
+                urllib.parse.quote_plus(queries, safe="{}:,\""),
+                self.api_key
+            )
+            context = urllib.request.urlopen(url)
+        
+            code = context.getcode()
+            if code != 200:
+                raise RuntimeError("Unexpected HTTP code %i" % code)
 
-                url = 'http://octopart.com/api/v3/parts/match?queries=%s&apikey=%s' % (
-                    urllib.parse.quote_plus(queries, safe="{}:,\""),
-                    self.api_key
-                )
-                context = urllib.request.urlopen(url)
-            
-                code = context.getcode()
-                if code != 200:
-                    raise RuntimeError("Unexpected HTTP code %i" % code)
+            text = context.read().decode("utf-8")
+            objects = json.loads(text)
 
-                text = context.read().decode("utf-8")
-                objects = json.loads(text)
-                self.cache[key] = objects
+            first_result = objects["results"][0]
+            if "error" in first_result and first_result["error"] != None:
+                print("Error '%s'." % first_result["error"], file=sys.stderr)
 
-                self.save()
-                time.sleep(1)
+            elif not first_result["items"]:
+                print("Not Found.", file=sys.stderr)
+                self.cache[query] = []
 
+            else:
+                print("Found.", file=sys.stderr)
+                self.cache[query] = first_result["items"]
+
+            self.save()
+            time.sleep(1)
+
+        else:
+            print("Cached octopart for %s." % repr(query), end=" ", flush=True, file=sys.stderr)
+            if self.cache[query]:
+                print("Found.", file=sys.stderr)
+            else:
+                print("Not Found.", file=sys.stderr)
 

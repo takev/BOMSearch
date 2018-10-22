@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import sys
+import pprint
 import optparse
 
 import Components
@@ -15,7 +16,6 @@ def parseOptions():
     parser = optparse.OptionParser(usage="%prog --octopart-apikey=<apikey> <netlist.xml> ...")
     parser.add_option("--octopart-apikey", dest="octopart_apikey")
 
-
     (options, netlist_filenames) = parser.parse_args()
 
 def main():
@@ -26,15 +26,13 @@ def main():
         p = KiCadExportParser.KiCadExportParser(netlist_filename)
         components.merge(p.components)
 
-    #print(components)
-
-    parts = components.parts()
-    #print(parts)
-
     octopart = Octopart.Octopart(options.octopart_apikey)
-    octopart.populate(parts.allMFPs())
 
+    components.findParts(octopart)
 
+    components.findBestOffers()
+
+    print(repr(components), file=sys.stderr)
 
 if __name__ == "__main__":
     main()

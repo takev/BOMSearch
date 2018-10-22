@@ -6,6 +6,7 @@ import xml.sax.handler
 
 import Components
 import Component
+import Location
 
 class KiCadExportParser (xml.sax.handler.ContentHandler):
     def __init__(self, filename_or_stream):
@@ -41,19 +42,15 @@ class KiCadExportParser (xml.sax.handler.ContentHandler):
 
     def startElement(self, name, attrs):
         method_name = "_start_%s" % name
-        try:
+        if hasattr(self, method_name):
             method = getattr(self, method_name)
             method(**attrs)
-        except AttributeError:
-            pass
 
     def endElement(self, name):
         method_name = "_end_%s" % name
-        try:
+        if hasattr(self, method_name):
             method = getattr(self, method_name)
             method()
-        except AttributeError:
-            pass
 
         # Clear text on stack after a tag.
         self.popContent()
@@ -68,7 +65,10 @@ class KiCadExportParser (xml.sax.handler.ContentHandler):
             raise TypeError("Expect instance of Components.Components got " + repr(self.components))
 
     def _start_comp(self, ref=None, count="1"):
-        component = Component.Component(ref, int(count))
+        component = Component.Component()
+        component.addCount(int(count))
+        if ref:
+            component.addLocation(Location.Location(ref))
         self.stack.append(component)
 
     def _end_comp(self):
