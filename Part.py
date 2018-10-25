@@ -15,13 +15,16 @@ class Part (object):
     def add(self, offer):
         self.offers.append(offer)
 
-    def findBestOffer(self, needed_quantity, currency, must_be_authorized=True):
+    def hasOffers(self):
+        return len(self.offers) > 0
+
+    def findBestOffer(self, needed_quantity):
         best_offer = None
 
         for offer in self.offers:
-            price_break = offer.findBestPriceBreak(needed_quantity, currency, must_be_authorized)
+            price_break = offer.findBestPriceBreak(needed_quantity)
             if price_break:
-                tmp = BestOffer.BestOffer(needed_quantity, self, offer, price_break, currency)
+                tmp = BestOffer.BestOffer(needed_quantity, self, offer, price_break)
 
                 if best_offer is None or tmp < best_offer:
                     best_offer = tmp

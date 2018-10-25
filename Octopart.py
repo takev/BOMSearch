@@ -16,17 +16,18 @@ class Octopart (object):
             fd = open(".octopart_cache.pickle", "rb")
             self.cache = pickle.load(fd)
             fd.close()
+
         except FileNotFoundError:
             print("Could not open octopart cache.", file=sys.stderr)
             self.cache = {}
 
-    def __getitem__(self, key):
-        self.populate(key)
-        if key not in self.cache:
-            raise KeyError(key)
+    def findOffers(self, query, filter):
+        self.populate(query)
+        if query not in self.cache:
+            raise KeyError(query)
 
         parts = []
-        for item in self.cache[key]:
+        for item in self.cache[query]:
             part = Part.Part()
             part.brand = item["brand"]["name"]
             part.manufacturer = item["manufacturer"]["name"]
@@ -42,17 +43,30 @@ class Octopart (object):
                 multiple = 1 if not offer["order_multiple"] else offer["order_multiple"]
                 for currency, price_breaks in offer["prices"].items():
                     for (quantity, price) in price_breaks:
+                        # Filter out price-breaks, offers or parts which we don't want.
+                        if currency not in filter.currencies:
+                            continue
+
+                        if filter.must_be_authorized and not part_offer.is_authorized:
+                            continue
+
+                        if part_offer.in_stock_quantity == 0:
+                            continue
+
                         part_offer.add(PriceBreak.PriceBreak(
                             currency=currency,
+                            currency_conversion=filter.currencies[currency],
                             price=price,
                             quantity=quantity,
                             minimum=minimum,
                             multiple=multiple
                         ))
 
-                part.add(part_offer)
-            
-            parts.append(part)
+                if part_offer.hasPriceBreaks():
+                    part.add(part_offer)
+           
+            if part.hasOffers():
+                parts.append(part)
 
         return parts
 

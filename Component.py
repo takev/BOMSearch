@@ -1,24 +1,26 @@
 
 import sys
 import utils
+import decimal
+
 import PartQueries
 import PartQuery
 
 class Component (object):
     def __init__(self):
-        self.count = 0
+        self.quantity = 0
         self.locations = []
+        self.type = None
         self.value = None
         self.datasheet = None
         self.description = None
+        self.characteristics = ""
         self.queries = PartQueries.PartQueries()
         self.parts = []
         self.best_offers = {}
 
     def __repr__(self):
-        refs = [x.ref for x in self.locations]
-        refs.sort()
-        s = "<Component MFP=%s count=%i value=%s refs=%s" % (self.queries, self.count, repr(self.value), repr(refs))
+        s = "<Component MFP=%s quantity=%i value=%s refs=%s" % (self.queries, self.quantity, repr(self.value), self.refs())
         s += utils.indentReprList(self.parts)
         s += ">"
         return s
@@ -43,26 +45,64 @@ class Component (object):
                 else:
                     print("Missing brand name or part number for component %s" % (repr(self)), file=sys.stderr)
 
-    def addCount(self, count):
-        self.count += count
+    def addQuantity(self, quantity):
+        self.quantity += quantity
 
     def addLocation(self, location):
         self.locations.append(location)
 
-    def findParts(self, part_dict):
-        for query in self.queries:
-            self.parts += part_dict[query]
+    def refs(self):
+        refs = [x.ref for x in self.locations]
+        refs.sort()
+        return ",".join(refs)
 
-    def findBestOffers(self):
-        self.best_offers = {}
+    def findParts(self, catalogue, filter):
+        for query in self.queries:
+            self.parts += catalogue.findOffers(query=query, filter=filter)
+
+    def findBestOffers(self, nrProducts):
         for currency in ["EUR", "USD"]:
             best_offer = None
             for part in self.parts:
-                tmp = part.findBestOffer(needed_quantity=self.count, currency=currency, must_be_authorized=True)
+                tmp = part.findBestOffer(needed_quantity=self.quantity * nrProducts)
                 if tmp and (best_offer is None or tmp < best_offer):
                     best_offer = tmp
 
-            self.best_offers[currency] = best_offer
+            self.best_offer = best_offer
 
+    def shoppingList(self, nrProducts, vendor):
+        if self.best_offer is None:
+            return ("%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (
+                self.type,
+                self.refs(),
+                repr(self.value),
+                repr(self.characteristics),
+                repr(self.description),
+                "",
+                "",
+                "",
+                "",
+                self.quantity * nrProducts,
+                "",
+                "",
+                ""
+            ), decimal.Decimal("0.0"))
+
+        else:
+            return ("%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s" % (
+                self.type,
+                self.refs(),
+                repr(self.value),
+                repr(self.characteristics),
+                repr(self.description),
+                repr(self.best_offer.part.brand),
+                repr(self.best_offer.part.manufacturer_part_number),
+                repr(self.best_offer.offer.seller),
+                repr(self.best_offer.offer.stock_keeping_unit),
+                self.quantity * nrProducts,
+                self.best_offer.price_break.orderQuantity(self.quantity * nrProducts),
+                self.best_offer.price_break.orderPricePer(self.quantity * nrProducts),
+                self.best_offer.price_break.orderPrice(self.quantity * nrProducts)
+            ), self.best_offer.price_break.orderPrice(self.quantity * nrProducts))
 
 

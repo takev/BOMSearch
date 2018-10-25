@@ -20,15 +20,13 @@ class PartOffer (object):
     def add(self, price_break):
         self.price_breaks.append(price_break)
 
-    def findBestPriceBreak(self, needed_quantity, currency, must_be_authorized):
-        if needed_quantity < self.in_stock_quantity:
-            return None
-        if must_be_authorized and not self.is_authorized:
-            return None
+    def hasPriceBreaks(self):
+        return len(self.price_breaks) > 0
 
+    def findBestPriceBreak(self, needed_quantity):
         best_price_break = None
         for price_break in self.price_breaks:
-            if price_break.currency != currency:
+            if price_break.orderQuantity(needed_quantity) >= self.in_stock_quantity:
                 continue
 
             if best_price_break is None or price_break.orderPrice(needed_quantity) < best_price_break.orderPrice(needed_quantity):

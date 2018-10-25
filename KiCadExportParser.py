@@ -64,9 +64,9 @@ class KiCadExportParser (xml.sax.handler.ContentHandler):
         if not isinstance(self.components, Components.Components):
             raise TypeError("Expect instance of Components.Components got " + repr(self.components))
 
-    def _start_comp(self, ref=None, count="1"):
+    def _start_comp(self, ref=None, quantity="1"):
         component = Component.Component()
-        component.addCount(int(count))
+        component.addQuantity(int(quantity))
         if ref:
             component.addLocation(Location.Location(ref))
         self.stack.append(component)
@@ -106,9 +106,3 @@ class KiCadExportParser (xml.sax.handler.ContentHandler):
 
         del self.field_name 
 
-if __name__ == "__main__":
-    p = KiCadExportParser("KiCadExportParser_test.xml")
-    print(p.components)
-
-    #import doctest
-    #doctest.testmod()

@@ -3,11 +3,12 @@
 import sys
 import pprint
 import optparse
+import decimal
 
 import Components
 import KiCadExportParser
 import Octopart
-
+import Filter
 
 def parseOptions():
     global options
@@ -15,6 +16,8 @@ def parseOptions():
 
     parser = optparse.OptionParser(usage="%prog --octopart-apikey=<apikey> <netlist.xml> ...")
     parser.add_option("--octopart-apikey", dest="octopart_apikey")
+    parser.add_option("--quantity", dest="quantity", type="int", default="1")
+    parser.add_option("--USD2EUR", dest="USD2EUR")
 
     (options, netlist_filenames) = parser.parse_args()
 
@@ -28,11 +31,19 @@ def main():
 
     octopart = Octopart.Octopart(options.octopart_apikey)
 
-    components.findParts(octopart)
+    filter = Filter.Filter()
+    filter.currencies["EUR"] = decimal.Decimal("1.0")
+    if options.USD2EUR:
+        filter.currencies["USD"] = decimal.Decimal(options.USD2EUR)
 
-    components.findBestOffers()
+    components.findParts(catalogue=octopart, filter=filter)
 
-    print(repr(components), file=sys.stderr)
+    components.findBestOffers(nrProducts=options.quantity)
+
+
+    shopping_list = components.shoppingList(nrProducts=options.quantity)
+
+    open("shopping_list.csv", "w").write(shopping_list)
 
 if __name__ == "__main__":
     main()
