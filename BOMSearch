@@ -2,7 +2,7 @@
 
 import sys
 import pprint
-import optparse
+import argparse
 import decimal
 
 import Components
@@ -10,40 +10,52 @@ import KiCadExportParser
 import Octopart
 import Filter
 
+
 def parseOptions():
     global options
-    global netlist_filenames
 
-    parser = optparse.OptionParser(usage="%prog --octopart-apikey=<apikey> <netlist.xml> ...")
-    parser.add_option("--octopart-apikey", dest="octopart_apikey")
-    parser.add_option("--quantity", dest="quantity", type="int", default="1")
-    parser.add_option("--USD2EUR", dest="USD2EUR")
+    def parseCurrency(x):
+        currency, multiplier = x.split(":")
+        return (currency, decimal.Decimal(multiplier))
 
-    (options, netlist_filenames) = parser.parse_args()
+    def parseVendor(x):
+        vendor, penalty = x.split(":")
+        return (vendor, decimal.Decimal(penalty))
+
+    parser = argparse.ArgumentParser(description="Process xml-netlist and product BOM")
+    parser.add_argument("netlists", metavar="xml-netlist", nargs="+")
+    parser.add_argument("--octopart-apikey", dest="octopart_apikey")
+    parser.add_argument("--units", dest="units", type=int, default="1")
+    parser.add_argument("--currency", dest="currencies", type=parseCurrency, action="append")
+    parser.add_argument("--vendor", dest="vendors", type=parseVendor, action="append")
+
+    options = parser.parse_args()
 
 def main():
     parseOptions()
 
     components = Components.Components()
-    for netlist_filename in netlist_filenames:
+    for netlist_filename in options.netlists:
         p = KiCadExportParser.KiCadExportParser(netlist_filename)
         components.merge(p.components)
 
     octopart = Octopart.Octopart(options.octopart_apikey)
 
     filter = Filter.Filter()
-    filter.currencies["EUR"] = decimal.Decimal("1.0")
-    if options.USD2EUR:
-        filter.currencies["USD"] = decimal.Decimal(options.USD2EUR)
+    print(repr(options.currencies))
+    for currency, multiplier in options.currencies:
+        filter.currencies[currency] = multiplier
+
+    for vendor, penalty in options.vendors:
+        filter.vendors[vendor] = penalty
+    print(repr(options.vendors))
 
     components.findParts(catalogue=octopart, filter=filter)
 
-    components.findBestOffers(nrProducts=options.quantity)
+    fd = open("shopping_list.csv", "w")
+    shopping_list = components.shoppingList(fd=fd, nr_units=options.units)
+    fd.close()
 
-
-    shopping_list = components.shoppingList(nrProducts=options.quantity)
-
-    open("shopping_list.csv", "w").write(shopping_list)
 
 if __name__ == "__main__":
     main()

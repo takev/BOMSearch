@@ -4,10 +4,9 @@ import json
 import urllib
 import sys
 import time
+import decimal
 
-import Part
-import PartOffer
-import PriceBreak
+import Offer
 
 class Octopart (object):
     def __init__(self, api_key):
@@ -21,54 +20,52 @@ class Octopart (object):
             print("Could not open octopart cache.", file=sys.stderr)
             self.cache = {}
 
-    def findOffers(self, query, filter):
-        self.populate(query)
-        if query not in self.cache:
-            raise KeyError(query)
+    def findOffers(self, queries, filter):
+        offers = []
+        for query in queries:
+            self.populate(query)
+            if query not in self.cache:
+                raise KeyError(query)
 
-        parts = []
-        for item in self.cache[query]:
-            part = Part.Part()
-            part.brand = item["brand"]["name"]
-            part.manufacturer = item["manufacturer"]["name"]
-            part.manufacturer_part_number = item["mpn"]
-            for offer in item["offers"]:
-                part_offer = PartOffer.PartOffer()
-                part_offer.seller = offer["seller"]["name"]
-                part_offer.stock_keeping_unit = offer["sku"]
-                part_offer.is_authorized = offer["is_authorized"]
-                part_offer.in_stock_quantity = offer["in_stock_quantity"]
+            for item in self.cache[query]:
+                for offer in item["offers"]:
+                    for currency, price_breaks in offer["prices"].items():
+                        for (quantity, price) in price_breaks:
+                            currency_conversion=filter.currencies.get(currency, None)
+                            is_authorized=offer["is_authorized"]
+                            vendor = offer["seller"]["name"]
+                            vendor_penalty = filter.vendors.get(vendor, filter.unknown_vendor_penalty)
+                            in_stock_quantity = offer["in_stock_quantity"]
+                            minimum = 1 if not offer["moq"] else offer["moq"]
+                            multiple = 1 if not offer["order_multiple"] else offer["order_multiple"]
 
-                minimum = 1 if not offer["moq"] else offer["moq"]
-                multiple = 1 if not offer["order_multiple"] else offer["order_multiple"]
-                for currency, price_breaks in offer["prices"].items():
-                    for (quantity, price) in price_breaks:
-                        # Filter out price-breaks, offers or parts which we don't want.
-                        if currency not in filter.currencies:
-                            continue
+                            offer_obj = Offer.Offer(
+                                brand=item["brand"]["name"],
+                                manufacturer=item["manufacturer"]["name"],
+                                mpn=item["mpn"],
+                                vendor=vendor,
+                                vendor_penalty=vendor_penalty,
+                                sku=offer["sku"],
+                                is_authorized=is_authorized,
+                                in_stock_quantity=in_stock_quantity,
+                                currency=currency,
+                                currency_conversion=currency_conversion,
+                                price=decimal.Decimal(price),
+                                quantity=quantity,
+                                minimum=minimum,
+                                multiple=multiple
+                            )
 
-                        if filter.must_be_authorized and not part_offer.is_authorized:
-                            continue
+                            # Filter out price-breaks, offers or parts which we don't want.
+                            if currency not in filter.currencies:
+                                continue
 
-                        if part_offer.in_stock_quantity == 0:
-                            continue
+                            if filter.must_be_authorized and not is_authorized:
+                                continue
 
-                        part_offer.add(PriceBreak.PriceBreak(
-                            currency=currency,
-                            currency_conversion=filter.currencies[currency],
-                            price=price,
-                            quantity=quantity,
-                            minimum=minimum,
-                            multiple=multiple
-                        ))
+                            offers.append(offer_obj)
 
-                if part_offer.hasPriceBreaks():
-                    part.add(part_offer)
-           
-            if part.hasOffers():
-                parts.append(part)
-
-        return parts
+        return offers
 
     def save(self):
         fd = open(".octopart_cache.pickle", "wb")
@@ -111,9 +108,9 @@ class Octopart (object):
             time.sleep(1)
 
         else:
-            print("Cached octopart for %s." % repr(query), end=" ", flush=True, file=sys.stderr)
             if self.cache[query]:
-                print("Found.", file=sys.stderr)
+                #print("Cached octopart for %s. Found." % repr(query), flush=True, file=sys.stderr)
+                pass
             else:
-                print("Not Found.", file=sys.stderr)
+                print("Cached octopart for %s. Not Found." % repr(query), flush=True, file=sys.stderr)
 

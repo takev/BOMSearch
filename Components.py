@@ -1,6 +1,16 @@
 
 import utils
 import decimal
+import csv
+
+import Component
+
+class RealExcelDialect (csv.Dialect):
+    delimiter = ";"
+    quoting = csv.QUOTE_NONNUMERIC
+    quotechar = "'"
+    lineterminator = "\r\n"
+    escapechar = "\\"
 
 class Components (object):
     def __init__(self):
@@ -32,25 +42,20 @@ class Components (object):
         for component in self.components.values():
             component.findParts(catalogue=catalogue, filter=filter)
 
-    def findBestOffers(self, nrProducts):
-        for component in self.components.values():
-            component.findBestOffers(nrProducts)
-
-    def shoppingList(self, nrProducts, vendor=None):
+    def shoppingList(self, fd, nr_units, vendor=None):
         components = list(self.components.values())
         components.sort(key=lambda x: x.type + ":" + x.value + ":" + x.description)
 
-        lines = ["type;refs;value;characteristics;description;brand;mpn;seller;sku;quant;order quant;unit price;order price"]
+        header = Component.Component.shoppingListHeader()
+        writer = csv.DictWriter(fd, header, dialect=RealExcelDialect)
+        writer.writeheader()
+
         total_price = decimal.Decimal("0.0")
         for component in components:
-            line, order_price = component.shoppingList(nrProducts=nrProducts, vendor=vendor)
-            lines.append(line)
+            component_offer = component.shoppingList(nr_units=nr_units, vendor=vendor)
+            writer.writerow(component_offer)
 
-            total_price += order_price
+            total_price += component_offer["order price"]
 
-        lines.append(";;;Total;;;;;;;;%s" % total_price)
-
-        return "\n".join(lines) + "\n"
-
-
+        writer.writerow({"description": "Total", "order price": total_price})
 
