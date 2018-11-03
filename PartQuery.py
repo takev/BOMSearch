@@ -19,6 +19,8 @@ class PartQuery (object):
 
         return self.brand_name < other.brand_name
 
-    def OctopartQuery(self):
+    def octopartQuery(self):
         return {"brand": self.brand_name, "mpn": self.part_number}
 
+    def manualQuery(self):
+        return "%s:%s" % (self.brand_name, self.part_number)

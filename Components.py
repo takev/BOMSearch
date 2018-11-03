@@ -27,7 +27,6 @@ class Components (object):
 
         if queries in self.components:
             old_component = self.components[queries]
-            old_component.addQuantity(component.quantity)
             for location in component.locations:
                 old_component.addLocation(location)
 
@@ -57,5 +56,17 @@ class Components (object):
 
             total_price += component_offer["order price"]
 
-        writer.writerow({"description": "Total", "order price": total_price})
+        writer.writerow({"description": "Total", "order price": total_price, "unit price": total_price / nr_units})
+
+    def leaveVariants(self, variants):
+        stripped_locations = []
+
+        keys = list(self.components.keys())
+        for key in keys:
+            component = self.components[key]
+            stripped_locations += component.leaveVariants(variants)
+            if len(component) == 0:
+                del self.components[key]
+
+        return stripped_locations
 

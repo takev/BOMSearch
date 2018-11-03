@@ -77,7 +77,7 @@ class Octopart (object):
         """
         if query not in self.cache:
             print("Quering octopart for %s." % repr(query), end=" ", flush=True, file=sys.stderr)
-            queries = json.dumps([query.OctopartQuery()])
+            queries = json.dumps([query.octopartQuery()])
 
             url = 'http://octopart.com/api/v3/parts/match?queries=%s&apikey=%s' % (
                 urllib.parse.quote_plus(queries, safe="{}:,\""),

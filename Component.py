@@ -8,7 +8,6 @@ import PartQuery
 
 class Component (object):
     def __init__(self):
-        self.quantity = 0
         self.locations = []
         self.type = None
         self.value = None
@@ -18,8 +17,11 @@ class Component (object):
         self.queries = PartQueries.PartQueries()
         self.offers = []
 
+    def __len__(self):
+        return len(self.locations)
+
     def __repr__(self):
-        s = "<Component MFP=%s quantity=%i value=%s refs=%s" % (self.queries, self.quantity, repr(self.value), self.refs())
+        s = "<Component MFP=%s value=%s refs=%s" % (self.queries, repr(self.value), self.refs())
         s += utils.indentReprList(self.offers)
         s += ">"
         return s
@@ -44,9 +46,6 @@ class Component (object):
                 else:
                     print("Missing brand name or part number for component %s" % (repr(self)), file=sys.stderr)
 
-    def addQuantity(self, quantity):
-        self.quantity += quantity
-
     def addLocation(self, location):
         self.locations.append(location)
 
@@ -56,7 +55,7 @@ class Component (object):
         return ",".join(refs)
 
     def findParts(self, catalogue, filter):
-        self.offers = catalogue.findOffers(queries=self.queries, filter=filter)
+        self.offers+= catalogue.findOffers(queries=self.queries, filter=filter)
 
     @classmethod
     def shoppingListHeader(cls):
@@ -83,18 +82,18 @@ class Component (object):
             "value": self.value,
             "characteristics": self.characteristics,
             "description": self.description,
-            "quant": self.quantity * nr_units
+            "quant": len(self) * nr_units
         }
 
     def shoppingListOffer(self, nr_units, vendor):
         offers = []
         for offer in self.offers:
-            if offer.orderQuantity(self.quantity * nr_units) > offer.in_stock_quantity:
+            if offer.orderQuantity(len(self) * nr_units) > offer.in_stock_quantity:
                 continue
 
             offers.append(offer)
 
-        offers.sort(key=lambda x: x.orderPriceWithPenalty(self.quantity * nr_units))
+        offers.sort(key=lambda x: x.orderPriceWithPenalty(len(self) * nr_units))
 
         if offers:
             best_offer = offers[0]
@@ -103,9 +102,9 @@ class Component (object):
                 "mpn": best_offer.mpn,
                 "vendor": best_offer.vendor,
                 "sku": best_offer.sku,
-                "order quant": best_offer.orderQuantity(self.quantity * nr_units),
-                "unit price" : best_offer.orderPricePer(self.quantity * nr_units),
-                "order price" : best_offer.orderPrice(self.quantity * nr_units)
+                "order quant": best_offer.orderQuantity(len(self) * nr_units),
+                "unit price" : best_offer.orderPricePer(len(self) * nr_units),
+                "order price" : best_offer.orderPrice(len(self) * nr_units)
             }
         else:
             return {"order price": decimal.Decimal("0.0")}
@@ -114,5 +113,23 @@ class Component (object):
         d = self.shoppingListComponent(nr_units=nr_units)
         d.update(self.shoppingListOffer(nr_units=nr_units, vendor=vendor))
         return d
+
+    def updateVariants(self, variants):
+        for location in self.locations:
+            location.variants = variants
+
+    def leaveVariants(self, variants):
+        stripped_locations = []
+        leave_locations = []
+
+        for location in self.locations:
+            if len(location.variants) > 0 and location.variants.isdisjoint(variants):
+                stripped_locations.append(location)
+            else:
+                leave_locations.append(location)
+
+        self.locations = leave_locations
+        return stripped_locations
+
 
 

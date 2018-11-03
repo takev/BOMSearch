@@ -64,11 +64,13 @@ class KiCadExportParser (xml.sax.handler.ContentHandler):
         if not isinstance(self.components, Components.Components):
             raise TypeError("Expect instance of Components.Components got " + repr(self.components))
 
-    def _start_comp(self, ref=None, quantity="1"):
+    def _start_comp(self, ref):
         component = Component.Component()
-        component.addQuantity(int(quantity))
-        if ref:
-            component.addLocation(Location.Location(ref))
+
+        ref = [x.strip() for x in ref.split(",")]
+        for x in ref:
+            component.addLocation(Location.Location(x))
+
         self.stack.append(component)
 
     def _end_comp(self):
@@ -102,7 +104,12 @@ class KiCadExportParser (xml.sax.handler.ContentHandler):
         s = self.popContent()
 
         if self.stack and isinstance(self.stack[-1], Component.Component):
-            setattr(self.stack[-1], self.field_name.lower(), s)
+            if self.field_name.lower() == "variant":
+                if s.strip():
+                    variants = set(x.strip().lower() for x in s.split(","))
+                    self.stack[-1].updateVariants(variants)
+            else:
+                setattr(self.stack[-1], self.field_name.lower(), s)
 
         del self.field_name 
 

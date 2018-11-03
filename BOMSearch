@@ -5,11 +5,13 @@ import pprint
 import argparse
 import decimal
 
+import PartQueries
+import Component
 import Components
 import KiCadExportParser
 import Octopart
 import Filter
-
+import ManualCatalogue
 
 def parseOptions():
     global options
@@ -25,9 +27,11 @@ def parseOptions():
     parser = argparse.ArgumentParser(description="Process xml-netlist and product BOM")
     parser.add_argument("netlists", metavar="xml-netlist", nargs="+")
     parser.add_argument("--octopart-apikey", dest="octopart_apikey")
+    parser.add_argument("--catalogue", dest="catalogue", default=None)
     parser.add_argument("--units", dest="units", type=int, default="1")
-    parser.add_argument("--currency", dest="currencies", type=parseCurrency, action="append")
-    parser.add_argument("--vendor", dest="vendors", type=parseVendor, action="append")
+    parser.add_argument("--currency", dest="currencies", type=parseCurrency, default=[], action="append")
+    parser.add_argument("--vendor", dest="vendors", type=parseVendor, default=[], action="append")
+    parser.add_argument("--variant", dest="variants", type=str, default=[], action="append")
 
     options = parser.parse_args()
 
@@ -39,18 +43,28 @@ def main():
         p = KiCadExportParser.KiCadExportParser(netlist_filename)
         components.merge(p.components)
 
-    octopart = Octopart.Octopart(options.octopart_apikey)
+    stripped_locations = components.leaveVariants(set(x.strip().lower() for x in options.variants))
+    stripped_component = Component.Component()
+    stripped_component.queries = PartQueries.NoPart()
+    stripped_component.type = "DNP"
+    stripped_component.value = "DNP"
+    stripped_component.description = "Do not populate"
+    stripped_component.locations = stripped_locations
+    components.add(stripped_component)
 
     filter = Filter.Filter()
-    print(repr(options.currencies))
     for currency, multiplier in options.currencies:
         filter.currencies[currency] = multiplier
 
     for vendor, penalty in options.vendors:
         filter.vendors[vendor] = penalty
-    print(repr(options.vendors))
 
+    octopart = Octopart.Octopart(options.octopart_apikey)
     components.findParts(catalogue=octopart, filter=filter)
+
+    if options.catalogue:
+        catalogue = ManualCatalogue.ManualCatalogue(options.catalogue)
+        components.findParts(catalogue=catalogue, filter=filter)
 
     fd = open("shopping_list.csv", "w")
     shopping_list = components.shoppingList(fd=fd, nr_units=options.units)

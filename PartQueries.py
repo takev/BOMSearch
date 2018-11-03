@@ -26,8 +26,15 @@ class PartQueries (object):
         return h
 
     def __eq__(self, other):
-        return self.queries == other.queries
+        return self.queries == other.queries and not isinstance(other, NoPart)
 
     def add(self, query):
         self.queries.add(query)
+
+class NoPart (PartQueries):
+    def __hash__(self):
+        return PartQueries.__hash__(self)
+
+    def __eq__(self, other):
+        return isinstance(other, NoPart)
 
